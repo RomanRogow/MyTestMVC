@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Подключаем все изменения по порядку -->
+    <include file="changes/001-add-personal-code.xml" relativeToChangelogFile="true"/>
+    <include file="changes/002-add-created-at.xml" relativeToChangelogFile="true"/>
+    <include file="changes/003-fill-existing-data.xml" relativeToChangelogFile="true"/>
+    <include file="changes/004-add-constraints.xml" relativeToChangelogFile="true"/>
+    <include file="changes/005-migrate-qr-code-to-db.xml" relativeToChangelogFile="true"/>
+
+</databaseChangeLog>

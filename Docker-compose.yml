@@ -1,0 +1,18 @@
+version: "3.9"
+
+services:
+  postgres-web:
+    image: postgres:16
+    container_name: postgres_web_db
+    restart: always
+    environment:
+      POSTGRES_DB: web_test_db
+      POSTGRES_USER: web_user
+      POSTGRES_PASSWORD: web_password
+    ports:
+      - "5433:5432"  # Другой порт, чтобы не конфликтовать
+    volumes:
+      - postgres_web_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_web_data:

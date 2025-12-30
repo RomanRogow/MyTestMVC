@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- ВСЁ В ОДНОМ CHANGESET -->
+
+    <changeSet id="all-in-one-1" author="system">
+        <!-- Добавляем колонку если её нет -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="personal_code"/>
+            </not>
+        </preConditions>
+
+        <!-- 1. Добавляем колонку -->
+        <addColumn tableName="employees">
+            <column name="personal_code" type="VARCHAR(50)">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <!-- 2. Заполняем существующие записи -->
+        <sql>
+            UPDATE employees
+            SET personal_code = CONCAT('EMP-', id, '-',
+                                       EXTRACT(EPOCH FROM COALESCE(created_at, NOW()))::BIGINT % 10000)
+            WHERE personal_code IS NULL
+        </sql>
+
+        <!-- 3. Делаем NOT NULL -->
+        <addNotNullConstraint
+                tableName="employees"
+                columnName="personal_code"/>
+
+        <!-- 4. Делаем UNIQUE -->
+        <addUniqueConstraint
+                tableName="employees"
+                columnNames="personal_code"/>
+
+        <!-- 5. Добавляем индекс -->
+        <createIndex tableName="employees" indexName="idx_personal_code">
+            <column name="personal_code"/>
+        </createIndex>
+
+        <rollback>
+            <dropIndex tableName="employees" indexName="idx_personal_code"/>
+            <dropUniqueConstraint tableName="employees" constraintName="personal_code"/>
+            <dropNotNullConstraint tableName="employees" columnName="personal_code"/>
+            <dropColumn tableName="employees" columnName="personal_code"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

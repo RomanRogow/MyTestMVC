@@ -1,0 +1,55 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- 1. Добавляем новые колонки для хранения QR-кодов в БД -->
+    <changeSet id="005-add-qr-code-in-db-columns" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="qr_code_image"/>
+            </not>
+        </preConditions>
+
+        <addColumn tableName="employees">
+            <column name="qr_code_image" type="BYTEA">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <addColumn tableName="employees">
+            <column name="qr_code_base64" type="TEXT">
+                <constraints nullable="true"/>
+            </column>
+        </addColumn>
+
+        <comment>Добавлены колонки для хранения QR-кодов в БД (byte[] и Base64)</comment>
+    </changeSet>
+
+    <!-- 2. Обновляем приложение чтобы оно писало в новые колонки -->
+    <!-- (Это делается в коде Java - приложение начинает писать в qr_code_image и qr_code_base64) -->
+
+    <!-- 3. После того как приложение обновлено и все новые QR-коды генерируются в БД,
+         можно удалить старую колонку qr_path -->
+    <changeSet id="drop-old-qr-path-column" author="system">
+        <preConditions onFail="MARK_RAN">
+            <columnExists tableName="employees" columnName="qr_path"/>
+        </preConditions>
+
+        <dropColumn tableName="employees" columnName="qr_path"/>
+
+        <comment>Удалена устаревшая колонка qr_path (путь к файлу QR-кода)</comment>
+
+        <rollback>
+            <!-- На случай отката возвращаем колонку -->
+            <addColumn tableName="employees">
+                <column name="qr_path" type="VARCHAR(500)">
+                    <constraints nullable="true"/>
+                </column>
+            </addColumn>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

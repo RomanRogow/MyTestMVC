@@ -1,0 +1,172 @@
+# НАСТРОЙКИ СЕРВЕРА
+server:
+  port: 8082
+  error:
+    include-message: always
+    include-binding-errors: never
+    include-stacktrace: never
+    include-exception: false
+
+# НАСТРОЙКИ СОТРУДНИКОВ И API
+employee:
+  api:
+    base-url: "http://localhost:8080"
+    endpoint: "/api/employees"
+    ful-name: "http://localhost:8080/api/employees"
+    timeout:
+      connect: 5000
+      read: 10000
+  
+  sync:
+    enabled: true
+    interval-minutes: 15
+    on-startup: true
+    startup-delay-seconds: 30
+
+# НАСТРОЙКИ ШЕДУЛЕРА
+scheduling:
+  enabled: true
+  thread-name-prefix: "scheduler-"
+  pool:
+    size: 2
+
+# НАСТРОЙКИ QR-КОДОВ
+qr:
+  code:
+    width: 250
+    height: 250
+    format: "PNG"
+    charset: "UTF-8"
+    storage:
+      path: "./qr-codes/"
+      enabled: true
+
+# НАСТРОЙКИ ПРИЛОЖЕНИЯ
+app:
+  kafka:
+    enabled: true
+    topic:
+      employee-sync: "employee-sync-topic"
+      employee-bulk-sync: "employee-bulk-sync"
+    bulk-sync:
+      enabled: true
+      batch-size: 5
+      initial-delay: 600000      # 1 минута после старта
+      fixed-delay: 86400000     # 24 часа (раз в день)
+      incremental-cron: "0 0 */6 * * *"  # Каждые 6 часов
+  service:
+    name: "mytestprojectmvc"
+
+# SPRING НАСТРОЙКИ
+spring:
+  application:
+    name: "mytestprojectmvc"
+  
+  # Thymeleaf
+  thymeleaf:
+    prefix: "classpath:/templates/"
+    suffix: ".html"
+    cache: false
+    mode: HTML
+    encoding: UTF-8
+  
+  # MVC
+  mvc:
+    static-path-pattern: "/static/**"
+  
+  # Resources
+  web:
+    resources:
+      static-locations:
+        - "classpath:/static/"
+        - "classpath:/public/"
+      add-mappings: true
+  
+  # Database
+  datasource:
+    url: "jdbc:postgresql://localhost:5433/web_test_db"
+    username: "web_user"
+    password: "web_password"
+    driver-class-name: "org.postgresql.Driver"
+    hikari:
+      connection-timeout: 30000
+      maximum-pool-size: 10
+      minimum-idle: 5
+      idle-timeout: 600000
+      max-lifetime: 1800000
+  
+  # JPA
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+        jdbc:
+          batch_size: 20
+        order_inserts: true
+        order_updates: true
+    open-in-view: false
+  
+  # Liquibase
+  liquibase:
+    enabled: true
+    change-log: "classpath:/db/changelog/db.changelog-master.xml"
+    contexts: "default"
+    default-schema: "public"
+    liquibase-schema: "public"
+  
+  # Kafka Configuration
+  kafka:
+    bootstrap-servers: "localhost:9092"
+    producer:
+      key-serializer: "org.apache.kafka.common.serialization.StringSerializer"
+      value-serializer: "org.springframework.kafka.support.serializer.JsonSerializer"
+      properties:
+        spring.json.type.mapping: "employee:org.example.mytestprojectmvc.entity.Employee"
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: "${spring.application.name}-group"
+      key-deserializer: "org.apache.kafka.common.serialization.StringDeserializer"
+      value-deserializer: "org.springframework.kafka.support.serializer.JsonDeserializer"
+      auto-offset-reset: "earliest"
+      properties:
+        spring.json.trusted.packages: "org.example.mytestprojectmvc.entity"
+        spring.json.type.mapping: "employee:org.example.mytestprojectmvc.entity.Employee"
+        spring.json.use.type.headers: false
+
+# НАСТРОЙКИ ЛОГИРОВАНИЯ
+logging:
+  level:
+    # Уровни логирования по пакетам
+    root: INFO
+    org.example.mytestprojectmvc: INFO
+    org.example.mytestprojectmvc.scheduler: DEBUG
+    org.example.mytestprojectmvc.service: DEBUG
+    org.example.mytestprojectmvc.repository: DEBUG
+    
+    # Spring
+    org.springframework: INFO
+    org.springframework.web: INFO
+    org.springframework.scheduling: INFO
+    org.springframework.transaction: DEBUG
+    org.springframework.kafka: DEBUG
+    
+    # Hibernate
+    org.hibernate.SQL: DEBUG
+    org.hibernate.type.descriptor.sql.BasicBinder: TRACE
+    
+    # Database
+    org.springframework.jdbc: DEBUG
+    
+    # HTTP клиенты
+    org.springframework.web.client.RestTemplate: DEBUG
+    
+    # Kafka
+    org.apache.kafka: WARN
+    kafka: WARN
+  
+  # Паттерн для логов
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} - %highlight(%-5level) [%thread] %cyan(%logger{36}) - %msg%n"

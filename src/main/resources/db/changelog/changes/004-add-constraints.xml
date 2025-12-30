@@ -1,0 +1,79 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<databaseChangeLog
+        xmlns="http://www.liquibase.org/xml/ns/dbchangelog"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.liquibase.org/xml/ns/dbchangelog
+        http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
+
+    <!-- Добавляем NOT NULL constraint -->
+    <changeSet id="005-add-not-null-constraints" author="system">
+        <preConditions onFail="MARK_RAN">
+            <sqlCheck expectedResult="0">
+                SELECT COUNT(*) FROM employees WHERE personal_code IS NULL
+            </sqlCheck>
+        </preConditions>
+
+        <addNotNullConstraint
+                tableName="employees"
+                columnName="personal_code"
+                columnDataType="VARCHAR(50)"/>
+
+        <comment>Добавляем NOT NULL constraint для personal_code</comment>
+
+        <rollback>
+            <dropNotNullConstraint
+                    tableName="employees"
+                    columnName="personal_code"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Добавляем UNIQUE constraint -->
+    <changeSet id="006-add-unique-constraint" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <uniqueConstraintExists
+                        tableName="employees"
+                        constraintName="uq_employees_personal_code"/>
+            </not>
+        </preConditions>
+
+        <addUniqueConstraint
+                tableName="employees"
+                columnNames="personal_code"
+                constraintName="uq_employees_personal_code"/>
+
+        <comment>Добавляем UNIQUE constraint для personal_code</comment>
+
+        <rollback>
+            <dropUniqueConstraint
+                    tableName="employees"
+                    constraintName="uq_employees_personal_code"/>
+        </rollback>
+    </changeSet>
+
+    <!-- Добавляем индекс -->
+    <changeSet id="007-add-index" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <indexExists
+                        tableName="employees"
+                        indexName="idx_employees_personal_code"/>
+            </not>
+        </preConditions>
+
+        <createIndex
+                tableName="employees"
+                indexName="idx_employees_personal_code">
+            <column name="personal_code"/>
+        </createIndex>
+
+        <comment>Добавляем индекс для personal_code</comment>
+
+        <rollback>
+            <dropIndex
+                    tableName="employees"
+                    indexName="idx_employees_personal_code"/>
+        </rollback>
+    </changeSet>
+
+</databaseChangeLog>

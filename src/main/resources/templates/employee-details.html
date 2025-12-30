@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org">
+<head>
+    <meta charset="UTF-8">
+    <title>Карточка сотрудника</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.8.1/font/bootstrap-icons.css">
+</head>
+<body>
+<div class="container mt-5">
+    <!-- Заголовок -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h1><i class="bi bi-person-vcard"></i> Карточка сотрудника</h1>
+        <a th:href="@{/employees}" class="btn btn-outline-secondary">
+            <i class="bi bi-arrow-left"></i> Назад к списку
+        </a>
+    </div>
+
+    <!-- Сообщения -->
+    <div th:if="${error}" class="alert alert-danger alert-dismissible fade show" role="alert">
+        <i class="bi bi-exclamation-triangle"></i>
+        <strong>Ошибка!</strong> <span th:text="${error}"></span>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    </div>
+
+    <div class="row">
+        <!-- Основная информация -->
+        <div class="col-md-8">
+            <div class="card shadow mb-4">
+                <div class="card-header bg-info text-white">
+                    <h5 class="mb-0">
+                        <i class="bi bi-person-circle"></i>
+                        <span th:text="${employee.firstName + ' ' + employee.lastName}"></span>
+                        <span th:if="${employee.post != null and employee.post.length() > 0}"
+                              class="ms-2">(<span th:text="${employee.post}"></span>)</span>
+                    </h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <h6 class="text-muted"><i class="bi bi-key"></i> ID</h6>
+                            <p class="fs-5" th:text="${employee.id}"></p>
+
+                            <!-- Табельный номер -->
+                            <div th:if="${employee.personalCode != null and employee.personalCode.length() > 0}">
+                                <h6 class="text-muted"><i class="bi bi-id-card"></i> Табельный номер</h6>
+                                <p class="fs-5">
+                                    <code th:text="${employee.personalCode}"></code>
+                                    <button class="btn btn-sm btn-outline-secondary ms-2"
+                                            onclick="copyToClipboard('[[${employee.personalCode}]]')"
+                                            title="Скопировать табельный номер">
+                                        <i class="bi bi-clipboard"></i>
+                                    </button>
+                                </p>
+                            </div>
+
+                            <h6 class="text-muted"><i class="bi bi-person"></i> Имя</h6>
+                            <p class="fs-5" th:text="${employee.firstName}"></p>
+
+                            <h6 class="text-muted"><i class="bi bi-person-badge"></i> Фамилия</h6>
+                            <p class="fs-5" th:text="${employee.lastName}"></p>
+                        </div>
+                        <div class="col-md-6">
+                            <h6 class="text-muted"><i class="bi bi-calendar"></i> Возраст</h6>
+                            <p class="fs-5" th:text="${employee.age}"></p>
+
+                            <h6 class="text-muted"><i class="bi bi-building"></i> Отдел</h6>
+                            <span class="badge bg-primary fs-6" th:text="${employee.department}"></span>
+
+                            <div th:if="${employee.post != null and employee.post.length() > 0}">
+                                <h6 class="text-muted mt-3"><i class="bi bi-briefcase"></i> Должность</h6>
+                                <p class="fs-5" th:text="${employee.post}"></p>
+                            </div>
+
+                            <!-- Дата создания -->
+                            <div th:if="${employee.createdAt != null}">
+                                <h6 class="text-muted mt-3"><i class="bi bi-clock"></i> Дата создания</h6>
+                                <p class="fs-6 text-muted" th:text="${#temporals.format(employee.createdAt, 'dd.MM.yyyy HH:mm')}"></p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Информационные сообщения -->
+                    <div class="alert alert-success mt-4" role="alert">
+                        <i class="bi bi-check-circle"></i>
+                        Этот сотрудник сохранён в вашей локальной базе данных.
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- QR-код -->
+        <div class="col-md-4">
+            <div class="card shadow">
+                <div class="card-header bg-success text-white">
+                    <h5 class="mb-0"><i class="bi bi-qr-code-scan"></i> QR-код сотрудника</h5>
+                </div>
+                <div class="card-body text-center">
+                    <!-- Отображение QR-кода -->
+                    <div th:if="${qrCodeBase64 != null}">
+                        <!-- Сам QR-код -->
+                        <img th:src="'data:image/png;base64,' + ${qrCodeBase64}"
+                             alt="QR Code"
+                             class="img-fluid mb-3 qr-image"
+                             style="max-width: 250px; cursor: pointer;"
+                             title="Нажмите для увеличения">
+
+                        <!-- Описание -->
+                        <p class="text-muted small mb-3">
+                            <span th:if="${employee.personalCode != null and employee.personalCode.length() > 0}">
+                                Табельный номер: <strong th:text="${employee.personalCode}"></strong><br>
+                            </span>
+                            Отсканируйте для быстрого доступа
+                        </p>
+
+                        <!-- Кнопки действий -->
+                        <div class="d-grid gap-2">
+                            <!-- Скачать QR-код -->
+                            <a th:href="@{'/employees/' + ${employee.id} + '/qrcode'}"
+                               class="btn btn-outline-success">
+                                <i class="bi bi-download"></i> Скачать QR-код
+                            </a>
+
+                            <!-- Поделиться -->
+                            <button class="btn btn-outline-primary" onclick="shareEmployee()">
+                                <i class="bi bi-share"></i> Поделиться
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Если QR-код недоступен -->
+                    <div th:unless="${qrCodeBase64 != null}" class="text-center py-5">
+                        <i class="bi bi-qr-code display-4 text-muted d-block mb-3"></i>
+                        <p class="text-muted">QR-код недоступен</p>
+                    </div>
+
+                    <!-- Информация о данных QR-кода -->
+                    <div class="mt-4" th:if="${qrCodeBase64 != null}">
+                        <h6 class="text-muted"><i class="bi bi-info-circle"></i> Данные QR-кода:</h6>
+                        <div class="card bg-light">
+                            <div class="card-body p-2">
+                                <small class="text-muted" style="word-break: break-all;">
+                                    <span th:if="${employee.personalCode != null and employee.personalCode.length() > 0}">
+                                        Табельный номер: <strong th:text="${employee.personalCode}"></strong><br>
+                                    </span>
+                                    <span th:unless="${employee.personalCode != null and employee.personalCode.length() > 0}">
+                                        ID: <strong th:text="${employee.id}"></strong><br>
+                                    </span>
+                                    Имя: <strong th:text="${employee.firstName}"></strong>
+                                    <strong th:text="${employee.lastName}"></strong><br>
+                                    Отдел: <strong th:text="${employee.department}"></strong><br>
+                                    <span th:if="${employee.post != null and employee.post.length() > 0}">
+                                        Должность: <strong th:text="${employee.post}"></strong>
+                                    </span>
+                                </small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Кнопки действий -->
+    <div class="mt-4">
+        <a th:href="@{/employees/add}" class="btn btn-success">
+            <i class="bi bi-person-plus"></i> Добавить нового
+        </a>
+        <a th:href="@{/employees}" class="btn btn-outline-primary ms-2">
+            <i class="bi bi-search"></i> Поиск другого
+        </a>
+        <form th:action="@{'/employees/delete/' + ${employee.id}}"
+              method="post"
+              style="display: inline;"
+              onsubmit="return confirmDelete()">
+            <button type="submit" class="btn btn-outline-danger ms-2">
+                <i class="bi bi-trash"></i> Удалить сотрудника
+            </button>
+        </form>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    // Функция копирования текста в буфер обмена
+    function copyToClipboard(text) {
+        navigator.clipboard.writeText(text)
+            .then(() => {
+                alert('Скопировано в буфер обмена!');
+            })
+            .catch(err => {
+                console.error('Ошибка копирования:', err);
+                alert('Ошибка при копировании');
+            });
+    }
+
+    // Функция поделиться сотрудником
+    function shareEmployee() {
+        const employeeName = '[[${employee.firstName}]]' + ' ' + '[[${employee.lastName}]]';
+        const personalCode = '[[${employee.personalCode}]]' || '[[${employee.id}]]';
+        const shareText = 'Сотрудник: ' + employeeName + '\nТабельный номер: ' + personalCode + '\nСсылка: ' + window.location.href;
+
+        if (navigator.share) {
+            navigator.share({
+                title: 'Карточка сотрудника: ' + employeeName,
+                text: shareText,
+                url: window.location.href
+            })
+                .then(() => alert('Успешно поделились!'))
+                .catch((error) => {
+                    console.log('Ошибка шаринга:', error);
+                    copyToClipboard(shareText);
+                });
+        } else {
+            copyToClipboard(shareText);
+        }
+    }
+
+    // Подтверждение удаления
+    function confirmDelete() {
+        const firstName = '[[${employee.firstName}]]';
+        const lastName = '[[${employee.lastName}]]';
+        const personalCode = '[[${employee.personalCode}]]' || '[[${employee.id}]]';
+
+        return confirm('Удалить сотрудника:\n\n' + firstName + ' ' + lastName + '\nТабельный номер: ' + personalCode + '\n\nЭто действие нельзя отменить!');
+    }
+
+    // Увеличение QR-кода при клике
+    document.querySelectorAll('.qr-image').forEach(img => {
+        img.addEventListener('click', function() {
+            const modal = document.createElement('div');
+            modal.style.position = 'fixed';
+            modal.style.top = '0';
+            modal.style.left = '0';
+            modal.style.width = '100%';
+            modal.style.height = '100%';
+            modal.style.backgroundColor = 'rgba(0,0,0,0.95)';
+            modal.style.display = 'flex';
+            modal.style.justifyContent = 'center';
+            modal.style.alignItems = 'center';
+            modal.style.zIndex = '9999';
+            modal.style.cursor = 'pointer';
+
+            const qrImage = document.createElement('img');
+            qrImage.src = this.src;
+            qrImage.style.maxWidth = '90%';
+            qrImage.style.maxHeight = '90%';
+            qrImage.style.border = '15px solid white';
+            qrImage.style.borderRadius = '10px';
+            qrImage.style.boxShadow = '0 0 30px rgba(255,255,255,0.3)';
+
+            // Добавляем подпись
+            const caption = document.createElement('div');
+            caption.style.position = 'absolute';
+            caption.style.bottom = '20px';
+            caption.style.color = 'white';
+            caption.style.textAlign = 'center';
+            caption.style.width = '100%';
+            caption.innerHTML = '<small>Нажмите для закрытия</small>';
+
+            modal.appendChild(qrImage);
+            modal.appendChild(caption);
+
+            // Закрытие при клике
+            modal.addEventListener('click', function() {
+                document.body.removeChild(this);
+            });
+
+            document.body.appendChild(modal);
+        });
+    });
+</script>
+</body>
+</html>
