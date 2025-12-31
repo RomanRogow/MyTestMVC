@@ -11,5 +11,4 @@
     <include file="changes/003-fill-existing-data.xml" relativeToChangelogFile="true"/>
     <include file="changes/004-add-constraints.xml" relativeToChangelogFile="true"/>
     <include file="changes/005-migrate-qr-code-to-db.xml" relativeToChangelogFile="true"/>
-
 </databaseChangeLog>

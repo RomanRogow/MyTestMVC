@@ -19,7 +19,7 @@ public class QrEmpLocalSync {
     private final EmployeeRepository employeeRepository;
     private final EmployeeQrCodeGenerator qrCodeGenerator;
 
-    @Scheduled(fixedRate = 30000)
+    @Scheduled(fixedRate = 900000)
     public void updateQrLocalEmployee() {
         List<Employee> employee = employeeRepository.findByQrCodeImageIsNull();
         for (Employee emp : employee) {

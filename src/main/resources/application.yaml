@@ -51,7 +51,7 @@ app:
     bulk-sync:
       enabled: true
       batch-size: 5
-      initial-delay: 600000      # 1 минута после старта
+      initial-delay: 1000000      # 1 минута после старта
       fixed-delay: 86400000     # 24 часа (раз в день)
       incremental-cron: "0 0 */6 * * *"  # Каждые 6 часов
   service:

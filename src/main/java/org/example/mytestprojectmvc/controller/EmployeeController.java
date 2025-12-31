@@ -5,6 +5,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.example.mytestprojectmvc.entity.DTO.EmployeeDTO;
 import org.example.mytestprojectmvc.entity.Employee;
+import org.example.mytestprojectmvc.repository.EmployeeRepository;
 import org.example.mytestprojectmvc.scheduler.EmployeeBulkSyncToKafkaScheduler;
 import org.example.mytestprojectmvc.service.EmployeeApiService;
 import org.example.mytestprojectmvc.service.EmployeeCommandService;
@@ -31,8 +32,6 @@ public class EmployeeController {
     private final EmployeeQrCodeGenerator qrCodeGenerator;
     private final HttpSession session; // Добавляем сессию
     private final EmployeeBulkSyncToKafkaScheduler bulkSyncScheduler;
-
-
 
     // 1. ГЛАВНАЯ СТРАНИЦА - список сотрудников
     @GetMapping
@@ -370,6 +369,7 @@ public class EmployeeController {
             return null;
         }
     }
+
     @PostMapping("/trigger-bulk")
     public String triggerBulkSync(Model model) {
         try {
@@ -424,4 +424,5 @@ public class EmployeeController {
 
         return "employees/list";
     }
+
 }

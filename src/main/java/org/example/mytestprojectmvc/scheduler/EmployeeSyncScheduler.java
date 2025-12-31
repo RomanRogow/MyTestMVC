@@ -25,7 +25,7 @@ public class EmployeeSyncScheduler {
     @Value("${employee.api.ful-name}")
     private String url;
 
-    @Scheduled(fixedRate = 300000)
+    @Scheduled(fixedRate = 900000)
     public void syncEmployees() {
         log.info("Запускаю синхронизацию сотрудников...");
 
@@ -34,8 +34,7 @@ public class EmployeeSyncScheduler {
 
             if (remoteEmployees == null || remoteEmployees.length == 0) {
                 log.warn("Не получилось получить сотрудников");
-                return;
-            }
+в            }
 
             log.info("Получил {} сотрудников", remoteEmployees.length);
 

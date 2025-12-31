@@ -52,6 +52,14 @@ public class Employee {
 
     private LocalDateTime updatedAt;
 
+    // ИСПРАВЛЕНО: правильное имя колонки для флага
+    @Column(name = "synced_to_kafka", nullable = false)
+    @Builder.Default
+    private Boolean syncedToKafka = false;
+
+    @Column(name = "kafka_sync_date")
+    private LocalDateTime kafkaSyncDate;
+
     @PrePersist
     protected void onCreate(){
         if (personalCode == null){
@@ -61,6 +69,11 @@ public class Employee {
             createdAt = LocalDateTime.now();
         }
         updatedAt = LocalDateTime.now();
+
+        // Инициализируем флаг синхронизации
+        if (syncedToKafka == null) {
+            syncedToKafka = false;
+        }
     }
 
     @PreUpdate
@@ -103,6 +116,22 @@ public class Employee {
 
     public String getFullName(){
         return firstName + " " + lastName;
+    }
+
+    /**
+     * Метод для пометки сотрудника как синхронизированного с Kafka
+     */
+    public void markAsSyncedToKafka() {
+        this.syncedToKafka = true;
+        this.kafkaSyncDate = LocalDateTime.now();
+    }
+
+    /**
+     * Метод для сброса флага синхронизации (если нужно переотправить)
+     */
+    public void resetKafkaSyncFlag() {
+        this.syncedToKafka = false;
+        this.kafkaSyncDate = null;
     }
 
     @Override
