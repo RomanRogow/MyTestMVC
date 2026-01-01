@@ -17,7 +17,7 @@ import org.springframework.web.client.RestTemplate;
 @RequiredArgsConstructor
 public class EmployeeSyncScheduler {
 
-    private  final RestTemplate restTemplate;
+    private final RestTemplate restTemplate;
     private final EmployeeApiService service;
     private final EmployeeRepository repository;
     private final EmployeeQrCodeGenerator qrCodeGenerator;
@@ -34,7 +34,7 @@ public class EmployeeSyncScheduler {
 
             if (remoteEmployees == null || remoteEmployees.length == 0) {
                 log.warn("Не получилось получить сотрудников");
-в            }
+            }
 
             log.info("Получил {} сотрудников", remoteEmployees.length);
 
@@ -56,10 +56,10 @@ public class EmployeeSyncScheduler {
                     remote.getAge(),
                     remote.getDepartment()
             )) {
-               Employee savedEmployee = service.save(remote);
+                Employee savedEmployee = service.save(remote);
 
-               savedEmployee = qrCodeGenerator.generateQrCodeForEmployee(savedEmployee);
-               service.save(savedEmployee);
+                savedEmployee = qrCodeGenerator.generateQrCodeForEmployee(savedEmployee);
+                service.save(savedEmployee);
 
                 saved++;
                 log.debug("Сохранил: {} {}", remote.getFirstName(), remote.getLastName());
