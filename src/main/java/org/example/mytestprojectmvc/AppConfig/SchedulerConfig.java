@@ -23,10 +23,4 @@ import org.springframework.scheduling.annotation.EnableScheduling;
         matchIfMissing = true         // Если свойство отсутствует - считать true (включено по умолчанию)
 )
 public class SchedulerConfig {
-
-    // Этот класс не содержит методов, он только включает функциональность шедулеров
-    // благодаря аннотации @EnableScheduling
-
-    // Spring автоматически создаст пул потоков для выполнения запланированных задач
-    // Размер пула настраивается через scheduling.pool.size в application.yaml
 }
