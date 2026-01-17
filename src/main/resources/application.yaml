@@ -1,6 +1,6 @@
 # НАСТРОЙКИ СЕРВЕРА
 server:
-  port: 8082
+  port: 8083
   error:
     include-message: always
     include-binding-errors: never

@@ -13,9 +13,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
+import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -29,12 +30,12 @@ public class EmployeeBulkSyncToKafkaScheduler {
     @Value("${app.kafka.bulk-sync.enabled:true}")
     private boolean bulkSyncEnabled;
 
-    // Флаг для контроля выполнения
+    // Флаги и счетчики для статуса
     private final AtomicBoolean isRunning = new AtomicBoolean(false);
-
-    // Счетчик для отслеживания количества отправленных сообщений
-    private volatile long lastSyncCount = 0;
-    private volatile String lastSyncStatus = "NOT_STARTED";
+    private final AtomicInteger processedCount = new AtomicInteger(0);
+    private final AtomicInteger totalCount = new AtomicInteger(0);
+    private volatile String currentStatus = "NOT_STARTED";
+    private volatile String currentMessage = "";
 
     @Scheduled(
             initialDelayString = "${app.kafka.bulk-sync.initial-delay}",
@@ -42,16 +43,8 @@ public class EmployeeBulkSyncToKafkaScheduler {
     )
     @Transactional
     public void syncAllEmployeesToKafkaScheduled() {
-        if (!bulkSyncEnabled) {
-            log.info("Массовая синхронизация отключена в настройках");
-            return;
-        }
 
-        if (isRunning.get()) {
-            log.warn("Синхронизация уже выполняется, пропускаем запланированный запуск");
-            return;
-        }
-
+        log.info("Запуск синхронизации в кафку по шедулеру, время: {}", LocalDateTime.now());
         syncAllEmployeesToKafka();
     }
 
@@ -59,162 +52,132 @@ public class EmployeeBulkSyncToKafkaScheduler {
     public synchronized void syncAllEmployeesToKafka() {
         if (!bulkSyncEnabled) {
             log.info("Массовая синхронизация отключена в настройках");
+            currentStatus = "DISABLED";
             return;
         }
 
         // Проверяем, не выполняется ли уже синхронизация
         if (!isRunning.compareAndSet(false, true)) {
             log.warn("❌ Синхронизация уже выполняется, новый запуск невозможен");
-            return;
+            throw new IllegalStateException("Синхронизация уже выполняется");
         }
+
+        // Сбрасываем счетчики
+        processedCount.set(0);
+        totalCount.set(0);
+        currentStatus = "RUNNING";
+        currentMessage = "Начало синхронизации...";
 
         StopWatch stopWatch = StopWatch.createStarted();
         log.info("🚀 Начало массовой синхронизации сотрудников в Kafka");
 
         try {
+            // Получаем общее количество сотрудников
             long totalEmployees = employeeRepository.count();
+            totalCount.set((int) totalEmployees);
             log.info("Общее количество записей в БД: {}", totalEmployees);
 
             if (totalEmployees == 0) {
                 log.info("В БД нет записей для синхронизации");
-                lastSyncStatus = "NO_DATA";
+                currentStatus = "NO_DATA";
+                currentMessage = "Нет сотрудников для синхронизации";
                 return;
             }
-            boolean hasMore = true;
 
+            currentMessage = String.format("Найдено %d сотрудников для обработки", totalEmployees);
+
+            boolean hasMore = true;
             int processed = 0;
-            lastSyncStatus = "IN_PROGRESS";
 
             while (hasMore && !Thread.currentThread().isInterrupted()) {
+                // Получаем сотрудников, которых еще не синхронизировали
                 List<Employee> employees = employeeRepository.findAllSyncedToKafkaIsFalse();
-                List<Long> collect = employees.stream()
-                        .map(Employee::getId)
-                        .collect(Collectors.toList());
-                employeeRepository.updateSyncStatusByIds(collect);
 
                 if (employees.isEmpty()) {
                     log.debug("Не переданных в кафку записей нет.");
                     hasMore = false;
+                    break;
                 }
-                Long empCount = employees.stream()
-                                .count();
-                log.info("Обрабатываем список сотрудников, которые не переданы в Кафка {}", empCount);
 
-                for (Employee employee : employees){
-                employeeKafkaProducer.sendEmployeeForBulkSync(employee);
-                processed++;
+                List<Long> employeeIds = employees.stream()
+                        .map(Employee::getId)
+                        .collect(Collectors.toList());
+                log.info("НАЙДЕНЫ СОТРУДНИКИ ДЛЯ СИНХРОНИЗАЦИИ В КАФКУ С ID: {}", employeeIds);
 
-                    // Логируем прогресс каждые 5 сотрудников
-                    if (processed % 5 == 0) {
-                        log.info("Прогресс синхронизации: {}/{}", processed, totalEmployees);
+                log.info("Обрабатываем список из {} сотрудников, которые не переданы в Kafka", employees.size());
+                currentMessage = String.format("Обработка пачки из %d сотрудников", employees.size());
+
+                // Отправляем каждого сотрудника в Kafka
+                for (Employee employee : employees) {
+                    if (Thread.currentThread().isInterrupted()) {
+                        log.info("Получен сигнал прерывания, останавливаем синхронизацию");
+                        currentStatus = "STOPPED";
+                        currentMessage = "Синхронизация остановлена пользователем";
+                        return;
                     }
 
-                    Thread.sleep(10);
+                    try {
+                        employeeKafkaProducer.sendEmployeeForBulkSync(employee);
+                        processed++;
+                        processedCount.set(processed);
 
-                    String threadName = Thread.currentThread().getName();
-                    int threadId =(int) Thread.currentThread().getId();
-                    log.info("Имя потока выполнения {}, Его ID {}", threadName, threadId);
+                        // Обновляем статус в реальном времени
+                        if (processed % 5 == 0) {
+                            float progress = (float) processed / totalEmployees * 100;
+                            currentMessage = String.format("Обработано %d из %d (%.1f%%)",
+                                    processed, totalEmployees, progress);
+                            log.info("Прогресс синхронизации: {}/{} ({}%)",
+                                    processed, totalEmployees, String.format("%.1f", progress));
+                        }
 
-                    Set<Thread> threads = Thread.getAllStackTraces().keySet();
-                    for(Thread th : threads){
-                        log.info(" {} - {} = {} - {} - {}",
-                        th.getId(),
-                        th.getName(),
-                        th.getPriority(),
-                        th.getState(),
-                        th.getThreadGroup().getName());
+                        // Небольшая пауза для корректной работы UI
+                        Thread.sleep(10);
+
+                    } catch (Exception e) {
+                        log.error("Ошибка при отправке сотрудника ID: {} в Kafka. Ошибка: {}",
+                                employee.getId(), e.getMessage());
+                        // Продолжаем со следующим сотрудником
                     }
-                    log.info("Всего потоков {}", threads.size());
-
                 }
-                if (processed == collect.size()){
-                    log.info("Передано {}/{} записей в кафку", processed, totalEmployees);
+
+                // Обновляем статус для обработанных сотрудников
+                log.info("Обновляем статус сотрудников c ID: {}", employeeIds);
+                employeeRepository.updateSyncStatusByIds(employeeIds);
+                log.info("Обновлен статус для {} сотрудников", employeeIds.size());
+
+                // Проверяем, есть ли еще необработанные сотрудники
+                long remainingCount = employeeRepository.countBySyncedToKafkaFalse();
+                log.info("Проверка, есть ли еще необработанные сотрудники: {}", remainingCount);
+                if (remainingCount == 0) {
+                    hasMore = false;
+                    log.info("Все сотрудники обработаны");
                 }
             }
+
             stopWatch.stop();
 
-            log.info("Передача записей в кафку завершина. " +
-                    " Время выполнения {} мс.", stopWatch.getTime());
+            if (Thread.currentThread().isInterrupted()) {
+                currentStatus = "STOPPED";
+                currentMessage = String.format("Синхронизация остановлена. Обработано: %d/%d",
+                        processed, totalEmployees);
+            } else {
+                currentStatus = "COMPLETED";
+                currentMessage = String.format("Синхронизация завершена успешно. Обработано: %d/%d сотрудников. Время: %d мс",
+                        processed, totalEmployees, stopWatch.getTime());
+            }
+
+            log.info("Передача записей в кафку завершена. Обработано: {}/{}. Время выполнения: {} мс.",
+                    processed, totalEmployees, stopWatch.getTime());
+
         } catch (Exception e) {
-            lastSyncStatus = "FAILED: " + e.getMessage();
+            currentStatus = "FAILED";
+            currentMessage = "Ошибка при синхронизации: " + e.getMessage();
             log.error("❌ Критическая ошибка при массовой синхронизации: {}", e.getMessage(), e);
         } finally {
             // Всегда сбрасываем флаг выполнения
             isRunning.set(false);
         }
-
     }
-//
-//            int processed = 0;
-//            int page = 0;
-//            lastSyncStatus = "IN_PROGRESS";
-//
-//            // ОСНОВНОЙ ЦИКЛ ПАГИНАЦИИ
-//            while (hasMore && !Thread.currentThread().isInterrupted()) {
-//                // Получаем следующую пачку данных
-//                List<Employee> employees = employeeRepository.findAllWithPagination(page, batchSize);
-//
-//                // Если пачка пустая - заканчиваем
-//                if (employees.isEmpty()) {
-//                    log.debug("Пачка {} пустая, завершение обработки", page + 1);
-//                    hasMore = false;
-//                    continue;
-//                }
-//
-//                log.info("Обрабатываем пачку {}. Количество: {}", page + 1, employees.size());
-//
-//                // Отправляем каждого сотрудника из пачки в Kafka
-//                for (Employee employee : employees) {
-//                    try {
-//                        employeeKafkaProducer.sendEmployeeForBulkSync(employee);
-//                        processed++;
-//
-//                        // Логируем прогресс каждые 5 сотрудников
-//                        if (processed % 5 == 0) {
-//                            log.info("Прогресс синхронизации: {}/{}", processed, totalEmployees);
-//                        }
-//
-//                        // Небольшая пауза между отправками, чтобы не засорять Kafka
-//                        Thread.sleep(10); // 10ms пауза
-//
-//                    } catch (Exception e) {
-//                        log.error("Ошибка при отправке сотрудника ID: {} в Kafka. Ошибка: {}",
-//                                employee.getId(), e.getMessage());
-//                        // Продолжаем со следующим сотрудником
-//                    }
-//                }
-//
-//                // Переходим к следующей странице
-//                page++;
-//
-//                // Если полученная пачка меньше размера batch - значит это последняя пачка
-//                if (employees.size() < batchSize) {
-//                    log.debug("Полученная пачка меньше batch-size, это последняя пачка");
-//                    hasMore = false;
-//                }
-//
-//                // Небольшая пауза между пачками
-//                if (hasMore) {
-//                    Thread.sleep(50); // 50ms пауза между пачками
-//                }
-//            }
-//
-//            stopWatch.stop();
-//            lastSyncCount = processed;
-//            lastSyncStatus = "COMPLETED";
-//
-//            log.info("✅ Массовая синхронизация завершена УСПЕШНО. " +
-//                            "Обработано: {}/{} сотрудников. Время выполнения: {} мс",
-//                    processed, totalEmployees, stopWatch.getTime());
-//
-//        } catch (Exception e) {
-//            lastSyncStatus = "FAILED: " + e.getMessage();
-//            log.error("❌ Критическая ошибка при массовой синхронизации: {}", e.getMessage(), e);
-//        } finally {
-//            // Всегда сбрасываем флаг выполнения
-//            isRunning.set(false);
-//        }
-//    }
 
     /**
      * Ручной запуск синхронизации с проверкой
@@ -227,17 +190,28 @@ public class EmployeeBulkSyncToKafkaScheduler {
             throw new IllegalStateException("Синхронизация уже выполняется");
         }
 
-        // Запускаем в отдельном потоке, но контролируем через флаг
-        new Thread(() -> {
-            try {
-                syncAllEmployeesToKafka();
+        // Сбрасываем старые данные
+        processedCount.set(0);
+        totalCount.set(0);
+        currentStatus = "STARTING";
+        currentMessage = "Подготовка к синхронизации...";
 
+        // Запускаем в отдельном потоке
+        Thread syncThread = new Thread(() -> {
+            try {
+                this.syncAllEmployeesToKafka();
             } catch (Exception e) {
                 log.error("Ошибка при выполнении ручной синхронизации", e);
+                currentStatus = "FAILED";
+                currentMessage = "Ошибка: " + e.getMessage();
+                isRunning.set(false);
             }
-        }, "kafka-sync-thread").start();
+        }, "kafka-sync-thread");
 
-        log.info("✅ Запущена фоновая синхронизация");
+        syncThread.setDaemon(true);
+        syncThread.start();
+
+        log.info("✅ Запущена фоновая синхронизация в потоке: {}", syncThread.getName());
     }
 
     /**
@@ -246,9 +220,10 @@ public class EmployeeBulkSyncToKafkaScheduler {
     public SyncStatus getSyncStatus() {
         return new SyncStatus(
                 isRunning.get(),
-                lastSyncStatus,
-                lastSyncCount,
-                employeeRepository.count()
+                currentStatus,
+                processedCount.get(),
+                totalCount.get(),
+                currentMessage
         );
     }
 
@@ -258,16 +233,39 @@ public class EmployeeBulkSyncToKafkaScheduler {
     public void stopSync() {
         if (isRunning.get()) {
             log.info("🛑 Остановка текущей синхронизации");
-            Thread.currentThread().interrupt();
+
+            // Прерываем поток синхронизации
+            Thread.getAllStackTraces().keySet().stream()
+                    .filter(thread -> "kafka-sync-thread".equals(thread.getName()))
+                    .forEach(Thread::interrupt);
+
+            currentStatus = "STOPPING";
+            currentMessage = "Остановка синхронизации...";
         }
+    }
+
+    /**
+     * Проверяет, выполняется ли сейчас синхронизация
+     */
+    public boolean isSyncRunning() {
+        return isRunning.get();
     }
 
     @Data
     @AllArgsConstructor
     public static class SyncStatus {
-        private boolean isRunning;
+        private boolean running;
         private String status;
-        private long processedCount;
-        private long totalCount;
+        private int processedCount;
+        private int totalCount;
+        private String message;
+
+        public SyncStatus() {
+            this.running = false;
+            this.status = "NOT_STARTED";
+            this.processedCount = 0;
+            this.totalCount = 0;
+            this.message = "";
+        }
     }
 }

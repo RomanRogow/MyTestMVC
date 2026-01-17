@@ -13,7 +13,7 @@
     </style>
 </head>
 <body>
-<!-- ВАЖНО: Изменен th:action с /employees на /employees/list -->
+<!-- Форма для обновления страницы -->
 <form th:action="@{/employees/list}" method="get" style="display: none;" id="refreshForm"></form>
 
 <div class="container mt-5">
@@ -38,6 +38,18 @@
             </button>
         </div>
         <div class="card-body" th:if="${syncStatus != null}">
+            <!-- Отладка -->
+            <div style="background-color: #f8f9fa; padding: 10px; border-radius: 5px; margin-bottom: 10px; display: none;">
+                <small class="text-muted">Отладка:</small>
+                <small>Статус загружен:
+                    running=<span th:text="${syncStatus.running}"></span>,
+                    status=<span th:text="${syncStatus.status}"></span>,
+                    processed=<span th:text="${syncStatus.processedCount}"></span>,
+                    total=<span th:text="${syncStatus.totalCount}"></span>,
+                    message=<span th:text="${syncStatus.message}"></span>
+                </small>
+            </div>
+
             <div class="row">
                 <div class="col-md-6">
                     <p><strong>Статус:</strong>
@@ -51,26 +63,44 @@
                             <span th:if="${syncStatus.status == 'NOT_STARTED'}" class="status-not-started">
                                 <i class="bi bi-dash-circle"></i> НЕ НАЧИНАЛОСЬ
                             </span>
-                            <span th:if="${syncStatus.status.startsWith('FAILED')}" class="status-failed">
+                            <span th:if="${syncStatus.status == 'STARTING'}" class="status-running">
+                                <i class="bi bi-hourglass-split"></i> ЗАПУСКАЕТСЯ
+                            </span>
+                            <span th:if="${syncStatus.status == 'RUNNING'}" class="status-running">
+                                <i class="bi bi-arrow-repeat"></i> ВЫПОЛНЯЕТСЯ
+                            </span>
+                            <span th:if="${syncStatus.status == 'STOPPED' or syncStatus.status == 'STOPPING'}" class="status-failed">
+                                <i class="bi bi-pause-circle"></i> ОСТАНОВЛЕНО
+                            </span>
+                            <span th:if="${syncStatus.status == 'FAILED'}" class="status-failed">
                                 <i class="bi bi-x-circle"></i> ОШИБКА
                             </span>
                             <span th:if="${syncStatus.status == 'NO_DATA'}" class="status-not-started">
                                 <i class="bi bi-database"></i> НЕТ ДАННЫХ
                             </span>
+                            <span th:if="${syncStatus.status == 'DISABLED'}" class="status-not-started">
+                                <i class="bi bi-toggle-off"></i> ОТКЛЮЧЕНО
+                            </span>
                         </span>
                     </p>
-                    <p th:if="${syncStatus.processedCount > 0}">
+                    <p th:if="${syncStatus.totalCount > 0 and syncStatus.processedCount > 0}">
                         <strong>Обработано:</strong>
                         <span th:text="${syncStatus.processedCount}"></span> из
                         <span th:text="${syncStatus.totalCount}"></span> сотрудников
+                        <span th:if="${syncStatus.totalCount > 0}">
+                            (<span th:text="${#numbers.formatDecimal(syncStatus.processedCount * 1.0 / syncStatus.totalCount * 100, 1, 1)}"></span>%)
+                        </span>
                     </p>
                     <p th:if="${syncStatus.totalCount > 0 and syncStatus.processedCount == 0}">
                         <strong>Всего сотрудников:</strong>
                         <span th:text="${syncStatus.totalCount}"></span>
                     </p>
+                    <p th:if="${syncStatus.message != null and !syncStatus.message.isEmpty()}">
+                        <strong>Сообщение:</strong>
+                        <span th:text="${syncStatus.message}"></span>
+                    </p>
                 </div>
                 <div class="col-md-6 text-end">
-                    <!-- ВАЖНО: Изменен путь с /employees/stop-sync на /employees/stop-sync -->
                     <button type="button" class="btn btn-sm btn-outline-danger"
                             th:disabled="${not syncStatus.running}"
                             onclick="stopSync()">
@@ -81,18 +111,19 @@
         </div>
         <div class="card-body" th:unless="${syncStatus != null}">
             <p class="text-muted"><i class="bi bi-info-circle"></i> Статус синхронизации не доступен</p>
+            <small class="text-danger">Ошибка: syncStatus равен null</small>
         </div>
     </div>
 
     <!-- Кнопки действий -->
     <div class="mb-4">
-        <!-- ВАЖНО: Изменен путь с /employees/add на /employees/add -->
-        <a href="/employees/add" class="btn btn-success me-2">
+        <!-- Используем Thymeleaf путь -->
+        <a th:href="@{/employees/add}" class="btn btn-success me-2">
             <i class="bi bi-person-plus"></i> Добавить сотрудника
         </a>
 
         <!-- Кнопка массовой синхронизации -->
-        <!-- ВАЖНО: Изменен путь с /employees/trigger-bulk на /employees/trigger-bulk -->
+        <!-- Используем Thymeleaf путь -->
         <form th:action="@{/employees/trigger-bulk}" method="post" style="display: inline;">
             <button type="submit" class="btn btn-warning me-2"
                     th:disabled="${syncStatus != null and syncStatus.running}"
@@ -103,13 +134,23 @@
             </button>
         </form>
 
-        <!-- Индикатор выполнения (для AJAX версии) -->
-        <div id="syncProgress" class="mt-2 d-none">
+        <!-- Индикатор выполнения -->
+        <div id="syncProgress" class="mt-2" th:classappend="${syncStatus != null and syncStatus.running} ? '' : 'd-none'">
             <div class="progress" style="height: 20px;">
                 <div id="syncProgressBar" class="progress-bar progress-bar-striped progress-bar-animated"
-                     role="progressbar" style="width: 0%"></div>
+                     role="progressbar"
+                     th:style="${syncStatus != null and syncStatus.totalCount > 0} ?
+                     'width:' + ${syncStatus.processedCount * 1.0 / syncStatus.totalCount * 100} + '%' : 'width: 0%'"></div>
             </div>
-            <small id="syncStatusText" class="text-muted"></small>
+            <small id="syncStatusText" class="text-muted">
+                <span th:if="${syncStatus != null}">
+                    <span th:text="${syncStatus.processedCount}"></span> / <span th:text="${syncStatus.totalCount}"></span>
+                    <span th:if="${syncStatus.totalCount > 0}">
+                        (<span th:text="${#numbers.formatDecimal(syncStatus.processedCount * 1.0 / syncStatus.totalCount * 100, 1, 1)}"></span>%)
+                    </span>
+                    <span th:unless="${syncStatus.totalCount > 0}">(0%)</span>
+                </span>
+            </small>
         </div>
     </div>
 
@@ -117,8 +158,8 @@
     <div class="card mb-4">
         <div class="card-body">
             <h5><i class="bi bi-search"></i> Поиск сотрудника из удалённого сервиса:</h5>
-            <!-- ВАЖНО: Изменен путь с /employees/search на /employees/search -->
-            <form action="/employees/search" method="get" class="row g-3">
+            <!-- Используем Thymeleaf путь -->
+            <form th:action="@{/employees/search}" method="get" class="row g-3">
                 <div class="col-auto">
                     <input type="number" name="id" class="form-control" placeholder="Введите ID" required min="1">
                 </div>
@@ -170,7 +211,7 @@
                         </td>
                         <td>
                             <div class="text-center">
-                                <!-- ВАЖНО: Изменен путь с /employees/{id}/qrcode на /employees/{id}/qrcode -->
+                                <!-- Используем Thymeleaf путь -->
                                 <a th:href="@{'/employees/' + ${emp.id} + '/qrcode'}"
                                    target="_blank"
                                    class="d-block mb-1"
@@ -186,7 +227,7 @@
                                          class="text-muted small">Нет QR</div>
                                 </a>
                                 <small class="text-muted">
-                                    <!-- ВАЖНО: Изменен путь с /employees/{id}/qrcode на /employees/{id}/qrcode -->
+                                    <!-- Используем Thymeleaf путь -->
                                     <a th:href="@{'/employees/' + ${emp.id} + '/qrcode'}"
                                        download="employee_${emp.personalCode}_qrcode.png"
                                        class="text-decoration-none"
@@ -198,16 +239,16 @@
                         </td>
                         <td>
                             <div class="btn-group btn-group-sm" role="group">
-                                <!-- ВАЖНО: Изменен путь с /employees/{id} на /employees/{id} -->
+                                <!-- Используем Thymeleaf путь -->
                                 <a th:href="@{'/employees/' + ${emp.id}}"
                                    class="btn btn-outline-primary btn-sm">
                                     <i class="bi bi-eye"></i> Просмотр
                                 </a>
-                                <!-- ВАЖНО: Изменен путь с /employees/delete/{id} на /employees/delete/{id} -->
+                                <!-- Используем Thymeleaf путь -->
                                 <form th:action="@{'/employees/delete/' + ${emp.id}}"
                                       method="post"
                                       class="d-inline"
-                                      onsubmit="return confirmDelete(this, '${emp.firstName}', '${emp.lastName}')">
+                                      th:attr="onsubmit='return confirmDelete(this, \'' + ${emp.firstName} + '\', \'' + ${emp.lastName} + '\')'">
                                     <button type="submit" class="btn btn-outline-danger btn-sm ms-1">
                                         <i class="bi bi-trash"></i> Удалить
                                     </button>
@@ -221,8 +262,8 @@
                                 <i class="bi bi-people display-4 d-block mb-3"></i>
                                 <h5>Нет сотрудников</h5>
                                 <p class="mb-3">Добавьте первого сотрудника или найдите по ID в удалённом сервисе</p>
-                                <!-- ВАЖНО: Изменен путь с /employees/add на /employees/add -->
-                                <a href="/employees/add" class="btn btn-primary">
+                                <!-- Используем Thymeleaf путь -->
+                                <a th:href="@{/employees/add}" class="btn btn-primary">
                                     <i class="bi bi-person-plus"></i> Добавить первого сотрудника
                                 </a>
                             </div>
@@ -287,63 +328,9 @@
                 document.body.appendChild(modal);
             });
         });
-    });
 
-    // AJAX версия синхронизации (опционально)
-    document.addEventListener('DOMContentLoaded', function() {
-        const syncBtn = document.querySelector('button[th\\:action="@{/employees/trigger-bulk}"]');
-        if (syncBtn) {
-            syncBtn.addEventListener('click', function(e) {
-                // Для AJAX версии раскомментируйте код ниже
-                /*
-                e.preventDefault();
-                const btn = this;
-                const progressDiv = document.getElementById('syncProgress');
-                const progressBar = document.getElementById('syncProgressBar');
-                const statusText = document.getElementById('syncStatusText');
-
-                btn.disabled = true;
-                progressDiv.classList.remove('d-none');
-                progressBar.style.width = '0%';
-                progressBar.classList.remove('bg-success', 'bg-danger');
-                progressBar.classList.add('bg-warning');
-                statusText.textContent = 'Запуск синхронизации...';
-
-                fetch('/employees/trigger-bulk', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/x-www-form-urlencoded',
-                    }
-                })
-                .then(response => {
-                    if (response.redirected) {
-                        window.location.href = response.url;
-                        return;
-                    }
-                    return response.text();
-                })
-                .then(data => {
-                    progressBar.style.width = '100%';
-                    progressBar.classList.remove('bg-warning');
-                    progressBar.classList.add('bg-success');
-                    statusText.textContent = 'Синхронизация запущена!';
-
-                    // Автообновление страницы через 2 секунды
-                    setTimeout(() => {
-                        window.location.reload();
-                    }, 2000);
-                })
-                .catch(error => {
-                    console.error('Error:', error);
-                    progressBar.style.width = '100%';
-                    progressBar.classList.remove('bg-warning');
-                    progressBar.classList.add('bg-danger');
-                    statusText.textContent = 'Ошибка: ' + error.message;
-                    btn.disabled = false;
-                });
-                */
-            });
-        }
+        // Проверяем статус синхронизации каждые 3 секунды
+        checkAndAutoRefresh();
     });
 
     // Функция обновления страницы
@@ -384,16 +371,12 @@
     function checkAndAutoRefresh() {
         const syncRunningElement = document.querySelector('.status-running');
         if (syncRunningElement) {
-            // Обновляем страницу каждые 10 секунд если синхронизация выполняется
+            // Обновляем страницу каждые 3 секунды если синхронизация выполняется
             setTimeout(() => {
                 window.location.reload();
-            }, 10000);
+            }, 3000);
         }
     }
-    // Запускаем проверку статуса при загрузке
-    document.addEventListener('DOMContentLoaded', function() {
-        checkAndAutoRefresh();
-    });
 </script>
 </body>
 </html>

@@ -16,8 +16,16 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
 
     List<Employee> findByQrCodeImageIsNull();
 
-    boolean existsByFirstNameAndLastNameAndAgeAndDepartment(
-            String firstName, String lastName, int age, String department);
+    @Query("SELECT e FROM Employee e WHERE " +
+            "e.firstName IN :firstNames AND " +
+            "e.lastName IN :lastNames AND " +
+            "e.age IN :ages AND " +
+            "e.department IN :departments")
+    List<Employee> findExistingEmployeesBatch(
+            @Param("firstNames") List<String> firstNames,
+            @Param("lastNames") List<String> lastNames,
+            @Param("ages") List<Integer> ages,
+            @Param("departments") List<String> departments);
 
     @Query("SELECT e from Employee e where e.syncedToKafka = false")
     List<Employee> findAllSyncedToKafkaIsFalse();
@@ -26,4 +34,7 @@ public interface EmployeeRepository extends JpaRepository<Employee, Long> {
     @Query("UPDATE Employee e SET e.syncedToKafka = true, e.kafkaSyncDate = CURRENT_TIMESTAMP WHERE e.id IN :ids")
     @Transactional
     int updateSyncStatusByIds(@Param("ids") List<Long> ids);
+
+    @Query("SELECT COUNT(e) FROM Employee e WHERE e.syncedToKafka = false")
+    long countBySyncedToKafkaFalse();
 }
