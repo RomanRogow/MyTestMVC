@@ -6,12 +6,28 @@
         http://www.liquibase.org/xml/ns/dbchangelog/dbchangelog-4.9.xsd">
 
     <changeSet id="002-add-audit-columns" author="system">
-        <!-- Убрали preConditions для теста -->
+        <!-- Проверяем, что колонок еще нет -->
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="created_at"/>
+            </not>
+        </preConditions>
+
         <addColumn tableName="employees">
             <column name="created_at" type="TIMESTAMP">
                 <constraints nullable="true"/>
             </column>
         </addColumn>
+
+        <comment>Добавляем колонки для аудита created_at и updated_at</comment>
+    </changeSet>
+
+    <changeSet id="003-add-updated-at-column" author="system">
+        <preConditions onFail="MARK_RAN">
+            <not>
+                <columnExists tableName="employees" columnName="updated_at"/>
+            </not>
+        </preConditions>
 
         <addColumn tableName="employees">
             <column name="updated_at" type="TIMESTAMP">
@@ -19,7 +35,7 @@
             </column>
         </addColumn>
 
-        <comment>Добавляем колонки для аудита created_at и updated_at</comment>
+        <comment>Добавляем колонку updated_at</comment>
     </changeSet>
 
 </databaseChangeLog>
